@@ -1,55 +1,151 @@
 import React, { useState, useEffect } from 'react';
-import { Alert, Button, StyleSheet, Text, TouchableOpacity, View, ScrollView } from 'react-native';
+import { Alert, Button, StyleSheet, Text, TouchableOpacity, View, ScrollView, Image } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
+import { getAuth } from 'firebase/auth';
+import { addFoodToDatabase } from './addFoodToDatabase';  // Importer la fonction addFoodToDatabase
 
 export default function App() {
-  const [facing, setFacing] = useState<CameraType>('back'); // Set default to back camera
-  const [permission, requestPermission] = useCameraPermissions(); // Request camera permissions
-  const [scanned, setScanned] = useState(false); // To prevent scanning multiple times quickly
-  const [productInfo, setProductInfo] = useState<any>(null); // To store product info from API
+  const [facing, setFacing] = useState<CameraType>('back');
+  const [permission, requestPermission] = useCameraPermissions();
+  const [scannedBarcodes, setScannedBarcodes] = useState(new Map()); // Stocke les codes scannés
+  const [productInfo, setProductInfo] = useState<any>(null);
+
+  // Variables pour stocker les informations du produit
+  const [productName, setProductName] = useState<string>('');
+  const [productWeight, setProductWeight] = useState<string>('');
+  const [productDescription, setProductDescription] = useState<string>('');
+  const [productCategory, setProductCategory] = useState<string>('');
+  const [productExpiryDate, setProductExpiryDate] = useState<string>('');
+  const [productBrand, setProductBrand] = useState<string>('');
+  const [productIngredients, setProductIngredients] = useState<string>('');
+  const [productImage, setProductImage] = useState<string>('');
+  const [productNutrients, setProductNutrients] = useState<any>({});
+
+  const auth = getAuth();
+  const user = auth.currentUser;
 
   useEffect(() => {
     if (permission?.granted) {
-      // The camera is ready
+      // La caméra est prête
     }
   }, [permission]);
 
   if (!permission) {
-    // If the permissions are still loading
     return <View />;
   }
 
   if (!permission.granted) {
-    // If permission is not granted yet
     return (
       <View style={styles.container}>
-        <Text style={styles.message}>We need your permission to access the camera.</Text>
-        <Button onPress={requestPermission} title="Grant Permission" />
+        <Text style={styles.message}>Nous avons besoin de la permission pour accéder à la caméra.</Text>
+        <Button onPress={requestPermission} title="Accorder la permission" />
       </View>
     );
   }
 
-  // Toggle camera facing between front and back
   function toggleCameraFacing() {
     setFacing(current => (current === 'back' ? 'front' : 'back'));
   }
 
   const handleBarCodeScanned = async ({ type, data }: { type: string, data: string }) => {
-    setScanned(true); // Disable further scans until reset
+    if (scannedBarcodes.has(data)) {
+      return; // Ignore si déjà scanné récemment
+    }
 
-    console.log('Scanned Barcode Information:');
-    console.log('Type:', type); // Log the type of the barcode (e.g., QR, EAN)
-    console.log('Data:', data); // Log the data contained in the barcode
+    setScannedBarcodes(new Map(scannedBarcodes.set(data, Date.now())));
 
-    // Call API to fetch product details using the barcode data
+    // Récupérer les informations du produit
     const product = await fetchProductDetails(data);
-    setProductInfo(product); // Save product info to state
+    setProductInfo(product);
 
-    // Show an alert with the scanned data
-    Alert.alert(`Product Found! Type: ${type}, Data: ${data}`);
+    // Mettre à jour les variables d'état avec les informations récupérées
+    if (product) {
+      setProductName(product.product_name || 'Produit inconnu');
+      setProductWeight(product.quantity || 'N/A');
+      setProductDescription(product.ingredients_text || 'Pas de description');
+      setProductCategory(product.categories || 'Non catégorisé');
+      setProductExpiryDate(product.expiration_date || '');  // Remplacer la valeur par une chaîne vide si manquante
+      setProductBrand(product.brands || 'Marque non disponible');
+      setProductIngredients(product.ingredients_text || 'Ingrédients non disponibles');
+      setProductImage(product.image_url || '');
+      
+      // Filtrer les valeurs nutritionnelles pour ne garder que celles qui sont importantes
+      const filteredNutrients = filterNutrients(product.nutriments || {});
+      setProductNutrients(filteredNutrients);
+    }
 
-    // Reset the scanning state after 1 second to allow another scan
-    setTimeout(() => setScanned(false), 1000);
+    // Affichage d'un message d'alerte avec les informations du produit
+    Alert.alert(
+      'Produit scanné',
+      `Nom: ${productName}\nPoids: ${productWeight}\nDescription: ${productDescription}\nCatégorie: ${productCategory}\nDate de péremption: ${productExpiryDate || 'Non disponible'}\nMarque: ${productBrand}`
+    );
+
+    setTimeout(() => {
+      setScannedBarcodes(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(data);
+        return newMap;
+      });
+    }, 2000); // Bloque les scans du même code pendant 2 secondes
+
+    // Ajouter le produit à la base de données
+    if (productName && productWeight && productDescription) {
+      let expiryDateString = ''; // Valeur par défaut (chaîne vide) si la date est manquante ou invalide
+
+      if (productExpiryDate && productExpiryDate !== 'Date non disponible') {
+        const expiryDate = new Date(productExpiryDate);  // Conversion de la chaîne en objet Date
+        if (!isNaN(expiryDate.getTime())) {  // Vérification si la date est valide
+          expiryDateString = expiryDate.toISOString();  // Conversion de la date en chaîne ISO
+        } else {
+          console.error('Erreur: Date de péremption invalide', productExpiryDate);
+          expiryDateString = ''; // Si la date est invalide, la remplacer par une chaîne vide
+        }
+      }
+
+      // On assure que productIngredients est toujours une chaîne
+      const ingredients = productIngredients || ''; // Si null, utiliser une chaîne vide
+
+      // Ajouter un produit à la base de données avec les arguments nécessaires
+      await addFoodToDatabase(
+        user?.uid || '',  // UID de l'utilisateur connecté
+        productName,
+        productWeight,
+        '1',  // Quantité par défaut
+        productDescription,
+        expiryDateString,  // Passer la date convertie ou une chaîne vide si invalide
+        productImage,
+        productBrand,
+        ingredients, // On passe une chaîne vide si null
+        productNutrients,
+        productCategory  // Ajouter la catégorie du produit
+      );
+
+      console.log('Produit ajouté à la base de données');
+    }
+  };
+
+  // Fonction pour filtrer les nutriments et garder seulement ceux d'intérêt
+  const filterNutrients = (nutrients: any) => {
+    const allowedNutrients = [
+      'proteins',     // Protéines
+      'carbohydrates', // Glucides
+      'fat',           // Lipides
+      'fiber',         // Fibres
+      'sugars',        // Sucres
+      'salt',          // Sel
+      'energy',        // Énergie (calories)
+      'saturated-fat', // Graisses saturées
+    ];
+
+    const filteredNutrients: any = {};
+
+    for (const [key, value] of Object.entries(nutrients)) {
+      if (allowedNutrients.includes(key)) {
+        filteredNutrients[key] = value;
+      }
+    }
+
+    return filteredNutrients;
   };
 
   const fetchProductDetails = async (barcode: string) => {
@@ -58,18 +154,14 @@ export default function App() {
       const result = await response.json();
 
       if (result.product) {
-        // Log the entire product info to console
-        console.log('Fetched Product Info:', result.product);
-
-        // Return product details
         return result.product;
       } else {
-        Alert.alert('Product not found');
+        Alert.alert('Produit non trouvé');
         return null;
       }
     } catch (error) {
-      console.error('Error fetching product details:', error);
-      Alert.alert('Error fetching product details');
+      console.error('Erreur API:', error);
+      Alert.alert('Erreur lors de la récupération du produit');
       return null;
     }
   };
@@ -79,36 +171,36 @@ export default function App() {
       <CameraView
         style={styles.camera}
         facing={facing}
-        onBarcodeScanned={scanned ? undefined : handleBarCodeScanned} // Prevent scanning multiple times quickly
+        onBarcodeScanned={handleBarCodeScanned} 
       >
         <View style={styles.buttonContainer}>
           <TouchableOpacity style={styles.button} onPress={toggleCameraFacing}>
-            <Text style={styles.text}>Flip Camera</Text>
+            <Text style={styles.text}>Changer Caméra</Text>
           </TouchableOpacity>
         </View>
       </CameraView>
 
       {productInfo && (
         <ScrollView style={styles.productInfoContainer}>
-          <Text style={styles.productTitle}>{productInfo.product_name || 'Product not found'}</Text>
-          <Text style={styles.productDetail}>Brand: {productInfo.brands || 'N/A'}</Text>
-          <Text style={styles.productDetail}>Categories: {productInfo.categories || 'N/A'}</Text>
-          <Text style={styles.productDetail}>Ingredients: {productInfo.ingredients_text || 'N/A'}</Text>
+          <Text style={styles.productTitle}>Nom: {productName}</Text>
+          <Text style={styles.productDetail}>Poids: {productWeight}</Text>
+          <Text style={styles.productDetail}>Marque: {productBrand}</Text>
+          <Text style={styles.productDetail}>Description: {productDescription}</Text>
+          <Text style={styles.productDetail}>Catégorie: {productCategory}</Text>
+          <Text style={styles.productDetail}>Date de péremption: {productExpiryDate}</Text>
+          
+          {/* Affichage des informations nutritionnelles */}
+          <Text style={styles.productDetail}>Valeurs nutritionnelles:</Text>
+          {Object.keys(productNutrients).length > 0 ? (
+            Object.entries(productNutrients).map(([key, value]) => (
+              <Text key={key} style={styles.productDetail}>{`${key}: ${value}`}</Text>
+            ))
+          ) : (
+            <Text style={styles.productDetail}>Valeurs nutritionnelles non disponibles</Text>
+          )}
 
-          <View style={styles.nutrientContainer}>
-            <Text style={styles.nutrientTitle}>--- Nutrition Facts ---</Text>
-            {productInfo.nutriments ? (
-              <>
-                <Text style={styles.nutrientDetail}>Energy: {productInfo.nutriments['energy-kcal_100g']} kcal per 100g</Text>
-                <Text style={styles.nutrientDetail}>Fat: {productInfo.nutriments['fat_100g']} g per 100g</Text>
-                <Text style={styles.nutrientDetail}>Sugars: {productInfo.nutriments['sugars_100g']} g per 100g</Text>
-                <Text style={styles.nutrientDetail}>Proteins: {productInfo.nutriments['proteins_100g']} g per 100g</Text>
-                <Text style={styles.nutrientDetail}>Carbohydrates: {productInfo.nutriments['carbohydrates_100g']} g per 100g</Text>
-              </>
-            ) : (
-              <Text style={styles.nutrientDetail}>Nutrition information not available.</Text>
-            )}
-          </View>
+          {/* Affichage de l'image du produit */}
+          {productImage && <Image source={{ uri: productImage }} style={styles.productImage} />}
         </ScrollView>
       )}
     </View>
@@ -157,16 +249,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 8,
   },
-  nutrientContainer: {
-    marginTop: 20,
-  },
-  nutrientTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 10,
-  },
-  nutrientDetail: {
-    fontSize: 14,
-    marginBottom: 5,
+  productImage: {
+    width: 150,
+    height: 150,
+    marginTop: 10,
   },
 });

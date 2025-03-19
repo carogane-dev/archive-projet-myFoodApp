@@ -1,10 +1,9 @@
+// AddFood.tsx
 import React, { useState } from "react";
 import { View, TextInput, Button, StyleSheet, Text } from "react-native";
-import { addDoc, collection } from "firebase/firestore";
-import { db } from "../config/firebaseConfig";
-import { getAuth } from "firebase/auth";
 import { useRouter } from "expo-router";
 import DateTimePicker from '@react-native-community/datetimepicker'; // Import du DateTimePicker
+import { addFoodToDatabase } from "./addFoodToDatabase"; // Import de la fonction réutilisable
 
 export default function AddFood() {
   const [name, setName] = useState("");
@@ -14,32 +13,15 @@ export default function AddFood() {
   const [expiryDate, setExpiryDate] = useState(new Date()); // Date initiale
   const [showDatePicker, setShowDatePicker] = useState(false); // Gérer l'affichage du DatePicker
   const router = useRouter();
-  const auth = getAuth();
-  const user = auth.currentUser;
+
   const addFoodHandler = async () => {
-    // Vérification pour s'assurer que l'utilisateur est connecté et les champs essentiels sont remplis
-    if (!user) {
-      alert("Vous devez être connecté pour ajouter un aliment.");
-      return;
-    }
-
+    // Vérification que tous les champs sont remplis
     if (name.trim() && weight.trim() && quantity.trim()) {
-      const newFood = {
-        name,
-        weight,
-        quantity,
-        description, // La description peut être vide
-        expiryDate: expiryDate.toISOString(), // Stocker la date au format ISO
-        userId: user.uid, // Associer l'aliment à l'utilisateur connecté
-      };
-
       try {
-        // Ajout du document dans la collection "foods"
-        console.log("UID de l'utilisateur connecté :", user.uid);
-        await addDoc(collection(db, "foods"), newFood);
-        console.log("passé :", user.uid);
+        // Appel de la fonction addFoodToDatabase pour ajouter l'aliment
+        await addFoodToDatabase(name, weight, quantity, description, expiryDate);
 
-        // Réinitialiser les champs après l'ajout de l'aliment
+        // Réinitialisation des champs après l'ajout
         setName("");
         setWeight("");
         setQuantity("");
@@ -47,15 +29,12 @@ export default function AddFood() {
         setExpiryDate(new Date()); // Réinitialiser la date
         setShowDatePicker(false); // Fermer le sélecteur de date
 
-        router.push("/"); // Après l'ajout, redirige vers la page d'accueil
-      } catch (error) {
-        if (error instanceof Error) {
-          console.error("Erreur lors de l'ajout de l'aliment : ", error.message);
-          alert(`Erreur lors de l'ajout de l'aliment : ${error.message}`);
-        } else {
-          console.error("Erreur inconnue lors de l'ajout de l'aliment : ", error);
-          alert("Erreur inconnue lors de l'ajout de l'aliment.");
-        }
+        // Redirection vers la page d'accueil
+        router.push("/");
+
+      } catch (error:any) {
+        console.error("Erreur lors de l'ajout de l'aliment : ", error);
+        alert(error.message); // Afficher l'erreur si elle se produit
       }
     } else {
       alert("Veuillez remplir tous les champs obligatoires.");
