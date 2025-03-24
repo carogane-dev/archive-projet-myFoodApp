@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, TextInput, Button, StyleSheet, Text } from "react-native";
+import { View, TextInput, Button, StyleSheet, Text, Modal, FlatList, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
 import DateTimePicker from '@react-native-community/datetimepicker'; // Import du DateTimePicker
 import { addFoodToDatabase } from "./addFoodToDatabase"; // Import de la fonction réutilisable
@@ -17,6 +17,9 @@ export default function AddFood() {
   const [productIngredients, setProductIngredients] = useState(""); // Ingrédients
   const [productImage, setProductImage] = useState(""); // Image du produit
   const [productNutrients, setProductNutrients] = useState({}); // Nutriments
+
+  const [isCategoryModalVisible, setCategoryModalVisible] = useState(false); // État pour afficher ou cacher le modal des catégories
+  const [customCategory, setCustomCategory] = useState(""); // Catégorie personnalisée
 
   const router = useRouter();
   const auth = getAuth();
@@ -38,6 +41,19 @@ export default function AddFood() {
     }
   };
 
+  // Liste des catégories proposées
+  const categories = [
+    "Viandes",
+    "Fruits",
+    "Légumes",
+    "Céréales",
+    "Produits laitiers",
+    "Boissons",
+    "Condiments",
+    "Snacks",
+    "Autres",
+  ];
+
   // Fonction qui va gérer l'ajout du produit avec des valeurs par défaut pour les champs manquants
   const addFoodHandler = async () => {
     // Vérification des informations de l'utilisateur
@@ -45,7 +61,7 @@ export default function AddFood() {
       console.error("Utilisateur non connecté");
       return;
     }
-
+  
     // Valeurs par défaut pour les champs manquants
     const expiryDateString = expiryDate.toISOString(); // La date au format ISO
     const productNutrientsFiltered = productNutrients || {}; // Utilisation des nutriments, vide s'il n'y en a pas
@@ -53,7 +69,23 @@ export default function AddFood() {
     const imageUrl = productImage || ""; // Valeur par défaut pour l'image
     const brand = productBrand || "Marque non précisée"; // Marque par défaut
     const ingredients = productIngredients || "Ingrédients non précisés"; // Ingrédients par défaut
-
+  
+    // Affichage dans la console des données avant de les envoyer
+    console.log("Données envoyées à la base de données :");
+    console.log({
+      userUid: user.uid,
+      name,
+      weight,
+      quantity,
+      description,
+      expiryDate: expiryDateString,
+      imageUrl,
+      brand,
+      ingredients,
+      productNutrients: productNutrientsFiltered,
+      category: detectedCategory,
+    });
+  
     // Ajouter le produit à la base de données
     await addFoodToDatabase(
       user.uid,  // Utilisation de l'UID de l'utilisateur connecté
@@ -68,9 +100,10 @@ export default function AddFood() {
       productNutrientsFiltered,  // Nutriments filtrés
       detectedCategory  // Catégorie (par défaut "Autres")
     );
-
+  
     // Redirection vers la page de succès après ajout
   };
+  
 
   return (
     <View style={styles.container}>
@@ -108,6 +141,39 @@ export default function AddFood() {
         style={styles.input}
       />
       
+      {/* Catégorie du produit */}
+      <TouchableOpacity onPress={() => setCategoryModalVisible(true)} style={styles.input}>
+        <Text>{productCategory || "Sélectionner la catégorie"}</Text>
+      </TouchableOpacity>
+
+      {/* Modal pour la liste déroulante des catégories */}
+      <Modal
+        visible={isCategoryModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setCategoryModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <FlatList
+              data={categories}
+              keyExtractor={(item) => item}
+              renderItem={({ item }) => (
+                <TouchableOpacity onPress={() => {
+                  setProductCategory(item);
+                  setCategoryModalVisible(false);
+                }} style={styles.modalItem}>
+                  <Text>{item}</Text>
+                </TouchableOpacity>
+              )}
+            />
+            <TouchableOpacity onPress={() => setCategoryModalVisible(false)} style={styles.modalButton}>
+              <Text>Annuler</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       {/* Sélecteur de date de péremption */}
       <Button 
         title={`Date de péremption: ${expiryDate.toLocaleDateString()}`} 
@@ -154,5 +220,29 @@ const styles = StyleSheet.create({
   },
   nightButton: {
     backgroundColor: "#0D47A1", // Bleu foncé pour la nuit
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.5)", // Fond semi-transparent
+  },
+  modalContent: {
+    width: "80%",
+    backgroundColor: "white",
+    padding: 20,
+    borderRadius: 10,
+  },
+  modalItem: {
+    padding: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#ddd",
+  },
+  modalButton: {
+    backgroundColor: "#4CAF50",
+    padding: 10,
+    borderRadius: 8,
+    alignItems: "center",
+    marginTop: 10,
   },
 });

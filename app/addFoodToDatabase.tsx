@@ -106,8 +106,11 @@ export const addFoodToDatabase = async (
       return;
     }
 
-    // Appliquer un filtre de catégorie basé sur la description et les ingrédients du produit
-    const detectedCategory = detectCategory(productDescription, productIngredients.split(','));
+    // Si la catégorie du produit est déjà définie, on la garde, sinon on la détecte
+    const finalCategory = (productCategory && productCategory !== "Non catégorisé") ? productCategory : detectCategory(productDescription, productIngredients.split(','));
+
+    // Si la date d'expiration est vide ou invalide, utiliser la date actuelle formatée
+    const expiry = expiryDate ? new Date(expiryDate).toISOString() : new Date().toISOString();
 
     // Préparer les données à ajouter dans Firestore
     const foodData = {
@@ -116,8 +119,8 @@ export const addFoodToDatabase = async (
       productWeight,
       quantity,
       productDescription,
-      productCategory: detectedCategory, // Appliquer la catégorie filtrée
-      expiryDate: expiryDate ? Timestamp.fromDate(new Date(expiryDate)) : null, 
+      productCategory: finalCategory, // Utiliser la catégorie finale (soit celle définie, soit détectée)
+      expiryDate: expiry,
       productImage,
       productBrand,
       productIngredients,

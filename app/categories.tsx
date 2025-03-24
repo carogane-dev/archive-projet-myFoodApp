@@ -50,6 +50,41 @@ export default function Categories() {
       image: require("../assets/images/feculent.png"),
       filterParam: "glucides",
       bgColor: "#E91E63" // Rose
+    },
+    {
+      id: "5",
+      title: "Produits laitiers",
+      image: require("../assets/images/laitier.png"),
+      filterParam: "Produits laitiers",
+      bgColor: "#EEEEEE" // Rose
+    },
+    {
+      id: "6",
+      title: "Boissons",
+      image: require("../assets/images/boissons.png"),
+      filterParam: "Boissons",
+      bgColor: "#EEEEEE" // Rose
+    },
+    {
+      id: "7",
+      title: "Condiments",
+      image: require("../assets/images/condiments.png"),
+      filterParam: "Condiments",
+      bgColor: "#EEEEEE" // Rose
+    },
+    {
+      id: "8",
+      title: "Snacks",
+      image: require("../assets/images/snacks.png"),
+      filterParam: "Snacks",
+      bgColor: "#EEEEEE" // Rose
+    },
+    {
+      id: "9",
+      title: "Autres",
+      image: require("../assets/images/feculent.png"),
+      filterParam: "Autres",
+      bgColor: "#EEEEEE" // Rose
     }
   ];
 

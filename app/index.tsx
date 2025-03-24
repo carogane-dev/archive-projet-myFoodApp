@@ -21,11 +21,25 @@ import { Ionicons } from "@expo/vector-icons";
 
 interface Food {
   id: string;
-  name: string;
-  weight: string;
+  productName: string;
+  productWeight: string;
   quantity: string;
-  description?: string;
-  expiryDate?: string;
+  productDescription?: string;
+  expiryDate?: string | null;
+  productCategory: string;
+  productBrand?: string;
+  productImage?: string;
+  productIngredients?: string;
+  productNutrients?: {
+    carbohydrates?: number;
+    energy?: number;
+    fat?: number;
+    fiber?: number;
+    proteins?: number;
+    salt?: number;
+    "saturated-fat"?: number;
+    sugars?: number;
+  };
   userId: string;
 }
 
@@ -45,7 +59,6 @@ export default function Aliments() {
   const [isDatePickerVisible, setIsDatePickerVisible] = useState(false);
 
   const router = useRouter();
-  // Récupération du paramètre "category" transmis depuis Main (ex. "viandes", "fruits", "légumes", etc.)
   const { category } = useLocalSearchParams() as { category?: string };
 
   useEffect(() => {
@@ -82,21 +95,37 @@ export default function Aliments() {
       id: doc.id,
       ...doc.data()
     })) as Food[];
-
+  
+    // Affichage des 5 premiers aliments après la récupération avec ID et Expiry Date
+    console.log("=== Aliments récupérés (5 premiers) ===");
+    fetchedFoods.forEach((food) => {
+      console.log(`ID: ${food.id}, Nom: ${food.productName}, Expiry Date: ${food.expiryDate}, Category: ${food.productCategory}`);
+    });
+  
     const validFoods = fetchedFoods.filter(
       (food) => food.expiryDate && !isNaN(new Date(food.expiryDate).getTime())
     );
-    validFoods.sort(
-      (a, b) => new Date(a.expiryDate!).getTime() - new Date(b.expiryDate!).getTime()
-    );
-
+  
+    // Affichage des aliments valides et triés avec ID et Expiry Date
+    console.log("=== Aliments valides et triés (5 premiers) ===");
+    validFoods.forEach((food) => {
+      console.log(`ID: ${food.id}, Nom: ${food.productName}, Expiry Date: ${food.expiryDate}, Category: ${food.productCategory}`);
+    });
+  
     let finalFoods = validFoods;
     if (category) {
       finalFoods = validFoods.filter(
         (food) =>
-          (food.description ?? "").toLowerCase() === category.toLowerCase()
+          (food.productCategory ?? "").toLowerCase() === category.toLowerCase()
       );
     }
+    console.log(category);
+    // Affichage des 5 premiers aliments après filtrage par catégorie avec ID et Expiry Date
+    console.log("=== Aliments après filtrage par catégorie (5 premiers) ===");
+    finalFoods.forEach((food) => {
+      console.log(`ID: ${food.id}, Nom: ${food.productName}, Expiry Date: ${food.expiryDate}, Category: ${food.productCategory}`);
+    });
+  
     setFoods(finalFoods);
   };
 
@@ -127,11 +156,11 @@ export default function Aliments() {
   };
 
   const startEditing = (food: Food) => {
-    setNewName(food.name);
-    setNewWeight(food.weight);
+    setNewName(food.productName);
+    setNewWeight(food.productWeight);
     setNewQuantity(food.quantity);
-    setNewDescription(food.description || "");
-    setNewExpiryDate(food.expiryDate ? new Date(food.expiryDate) : new Date());
+    setNewDescription(food.productDescription || "");
+    setNewExpiryDate(food.expiryDate ? new Date(food.expiryDate) : null);
     setIsEditing(true);
   };
 
@@ -218,7 +247,7 @@ export default function Aliments() {
                 <View style={[styles.foodCard, { backgroundColor: statusColor }]}>
                   <View style={styles.row}>
                     <TouchableOpacity style={styles.nameContainer} onPress={() => toggleFoodDetails(item)}>
-                      <Text style={styles.foodName}>{item.name}</Text>
+                      <Text style={styles.foodName}>{item.productName}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => deleteFood(item.id)}>
                       <Ionicons name="trash" size={24} color={textColor} />
@@ -226,16 +255,17 @@ export default function Aliments() {
                   </View>
                   {selectedFood && selectedFood.id === item.id && (
                     <View>
-                      {item.name && <Text>Nom: {item.name}</Text>}
-                      {item.weight && <Text>Poids: {item.weight}</Text>}
+                      {item.productName && <Text>Nom: {item.productName}</Text>}
+                      {item.productWeight && <Text>Poids: {item.productWeight}</Text>}
                       {item.quantity && <Text>Quantité: {item.quantity}</Text>}
-                      {item.description && <Text>Description: {item.description}</Text>}
+                      {item.productDescription && <Text>Description: {item.productDescription}</Text>}
                       {item.expiryDate && (
                         <Text>
                           Date d'expiration:{" "}
                           {format(new Date(item.expiryDate), "d MMM yyyy", { locale: fr })}
                         </Text>
                       )}
+
                       <Button title="Supprimer" onPress={() => deleteFood(item.id)} color={textColor} />
                       <Button title="Modifier" onPress={() => startEditing(item)} color={textColor} />
                     </View>
@@ -274,7 +304,7 @@ export default function Aliments() {
         </Text>
       )}
     </View>
-  );
+  );  
 }
 
 const styles = StyleSheet.create({
